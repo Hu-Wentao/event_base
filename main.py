@@ -12,7 +12,7 @@ from src.models import Tag, EventTag, Event, TodoDTO, Meta
 
 
 # === 后端逻辑,函数,ORM ===
-def save_mind_event(event: Event, tags: Iterable[Tag]) -> list[EventTag]:
+def save_event(event: Event, tags: Iterable[Tag]) -> list[EventTag]:
     logger.info(f"{event.content[:10]},{event.record_at}")
     event.save()
     event_tags = [EventTag.create(event=event, tag=t) for t in tags]
@@ -23,7 +23,7 @@ def save_tag(tag: Tag):
     logger.info(f"{tag.name}")
     tag.save()
     now = datetime.now()
-    save_mind_event(
+    save_event(
         event=Event(
             content=f'CREATE Tag: {tag.name}#{tag.id}',
             record_at=now,
@@ -37,7 +37,7 @@ def save_todo(event: Event, todo: TodoDTO):
     """创建Todo tag的event"""
     logger.info(f"{todo}")
     todo_tag = Tag.get_by_id(CONST_TAG_ID_TODO)
-    binding: EventTag = save_mind_event(event, tags=[todo_tag])[0]  # 只传入1个tag,因此返回1个binding
+    binding: EventTag = save_event(event, tags=[todo_tag])[0]  # 只传入1个tag,因此返回1个binding
     binding_id = binding.get_id()
     for kv in todo.items():
         Meta.create(
@@ -48,16 +48,15 @@ def save_todo(event: Event, todo: TodoDTO):
     pass
 
 
-def update_mind_event(event_id: int, edits: dict[str, Any]):
+def update_event(event_id: int, edits: dict[str, Any]):
     """更新数据表"""
     logger.info(f"{event_id}, {edits}")
     if 'tags' in edits.keys():
         # fixme raise "暂不支持编辑tags"
         raise "暂不支持编辑tags"
-    # fix datetime type
-    eds = {
-        k: v for k, v in edits.items()
-    }
+    for k, v in edits.items():
+        if isinstance(v, datetime):
+            edits[k] = v.isoformat()
     rst = (
         Event
         .update({
@@ -85,7 +84,7 @@ def update_todo_event(event_id: int, edits: dict[str, Any], ):
     logger.debug(f'{rst}')
 
 
-def query_mind_events(page: int = 1, by: int = 20, show_tag_system=False) -> pd.DataFrame:
+def query_events(page: int = 1, by: int = 20, show_tag_system=False) -> pd.DataFrame:
     logger.info(f"page:{page},by:{by},system:{show_tag_system}")
     query = (
         Event
@@ -198,7 +197,7 @@ def on_change_event_df():
             event_id = df.at[row_id, 'id']
             if 'tags' in edits.keys():
                 st.toast("暂不支持编辑tags", icon='⚠️')
-            update_mind_event(event_id, edits)
+            update_event(event_id, edits)
         pass
     if added := change['added_rows']:  # 新增列 [{'col_name':'bar'}]
         if added == [{}]:
@@ -208,7 +207,7 @@ def on_change_event_df():
     if deleted := change['deleted_rows']:  # 删除列 [1,2,3]
         for row_id in deleted:
             event_id = df.at[row_id, 'id']
-            update_mind_event(event_id, {'deleted': True})
+            update_event(event_id, {'deleted': True})
         pass
     # 这里传入新的df, 将导致ui刷新
     reload_event_grid()  # 刷新 df
@@ -218,7 +217,7 @@ def on_change_todo_df():
     """state自带update用于更新状态, 本函数只用于接收editor的change,转换为state(update)"""
 
     def on_edit(evt_id: int, eds: dict[str, Any], ):
-        update_mind_event(evt_id, eds)
+        update_event(evt_id, eds)
         pass
 
     change = st.session_state['edited_todo_df']
@@ -238,7 +237,7 @@ def on_change_todo_df():
     if deleted := change['deleted_rows']:  # 删除列 [1,2,3]
         for row_id in deleted:
             event_id = df.at[row_id, 'id']
-            update_mind_event(event_id, {'deleted': True})
+            update_event(event_id, {'deleted': True})
         pass
     # 这里传入新的df, 将导致ui刷新
     reload_event_grid()  # 刷新 df
@@ -246,7 +245,7 @@ def on_change_todo_df():
 
 def fetch_event_df() -> pd.DataFrame:
     """从state中收集查询条件, 查询 todo_grid 所需的df"""
-    return query_mind_events(
+    return query_events(
         page=st.session_state['p_event_grid-page'],
         by=st.session_state['p_event_grid-by'],
         show_tag_system=st.session_state['p_event_grid-show_tag_system'],
@@ -284,7 +283,7 @@ def ui_event_todo_query_param():
 
 
 @st.dialog("Create Event", width='large')
-def ui_form_mind_event(on_submitted: Callable[[Event, Iterable[Tag]], Any], now: datetime):
+def ui_form_event(on_submitted: Callable[[Event, Iterable[Tag]], Any], now: datetime):
     with st.form("form_create_mind-event", clear_on_submit=True):
         content = st.text_area("Content")
         c1, c2 = st.columns([1, 1])
@@ -313,7 +312,7 @@ def ui_form_mind_event(on_submitted: Callable[[Event, Iterable[Tag]], Any], now:
 
 
 @st.dialog("Batch Create Event", width='large')
-def ui_form_mind_event_batch(on_submitted: Callable[[Event, Iterable[Tag]], Any], now: datetime):
+def ui_form_event_batch(on_submitted: Callable[[Event, Iterable[Tag]], Any], now: datetime):
     """
     批量导入Event
     """
@@ -463,10 +462,10 @@ def main():
         t1c1, t1c2, t1c3, t1c4 = st.columns([1, 1, 1, 2])
         with t1c1:
             if st.button("Create Event"):
-                ui_form_mind_event(save_mind_event, datetime.now())
+                ui_form_event(save_event, datetime.now())
         with t1c2:
             if st.button("Batch Create"):
-                ui_form_mind_event_batch(save_mind_event, datetime.now())
+                ui_form_event_batch(save_event, datetime.now())
             pass
         with t1c3:
             st.number_input("翻页", key='p_event_grid-page', label_visibility='collapsed', help='翻页',
