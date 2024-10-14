@@ -322,14 +322,24 @@ def ui_form_event_batch(on_submitted: Callable[[Event, Iterable[Tag]], Any], now
         spilt_char = st.text_input("分隔符", value=' ', max_chars=5)
     with c2:
         record_at = st.date_input("Record Date", value=now, help='一次只能导入单日event')
-    datas = [ln.split(spilt_char) for ln in data.splitlines()]
-    datas = [d for d in datas if d.__len__() == 2]  # 过滤空白行 只导入 [‘<时间>’,‘<内容>’] 的数据
+    rst = []
+    for ln in data.splitlines():
+        if ln.strip().__len__() == 0: continue
+        logger.trace(f'#0#[{ln}]')
+        r_sp = ln.split(spilt_char)  # [<record_at>, <content>]
+        rcd_at, ctt = r_sp[0], f'{spilt_char}'.join(r_sp[1:])
+        logger.trace(f'#1#[{rcd_at}][{ctt}]')
+        if rcd_at.endswith('点'):
+            rcd_at = rcd_at[:-1] + ':00'
+            ctt = f'大约) {ctt}'
+            logger.trace(f'#2#{rcd_at},{ctt}')
+        rst.append([rcd_at, ctt])
     rst = [{
         'record_at': datetime.combine(
             record_at,
             datetime.strptime(evt_data[0], '%H:%M').time()),
         'content': ''.join(evt_data[1:]),
-    } for evt_data in datas]
+    } for evt_data in rst]
     st.data_editor(
         pd.DataFrame(rst)
     )
