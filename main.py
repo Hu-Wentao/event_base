@@ -317,19 +317,19 @@ def ui_form_event_batch(on_submitted: Callable[[Event, Iterable[Tag]], Any], now
     """
     data = st.text_area("Content", help='格式为 <record_time><split_char><content>\n')
     # ==
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        spilt_char = st.text_input("分隔符", value=' ', max_chars=5)
-    with c2:
-        record_at = st.date_input("Record Date", value=now, help='一次只能导入单日event')
+    record_at = st.date_input("Record Date", value=now, help='一次只能导入单日event')
     rst = []
     for ln in data.splitlines():
-        if ln.strip().__len__() == 0: continue
+        if ln.strip().__len__() == 0:  # 跳过空白行
+            continue
         logger.trace(f'#0#[{ln}]')
-        r_sp = ln.split(spilt_char)  # [<record_at>, <content>]
-        rcd_at, ctt = r_sp[0], f'{spilt_char}'.join(r_sp[1:])
+
+        rcd_at, ctt = ln[:5].rstrip(), ln[5:].lstrip()
         logger.trace(f'#1#[{rcd_at}][{ctt}]')
-        if rcd_at.endswith('点'):
+
+        if rcd_at.__contains__('点'): # 重新处理 ‘x点’ 时间
+            sp = ln.split('点')
+            rcd_at, ctt = sp[0], '点'.join(sp[0:])
             rcd_at = rcd_at[:-1] + ':00'
             ctt = f'大约) {ctt}'
             logger.trace(f'#2#{rcd_at},{ctt}')
