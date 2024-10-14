@@ -496,9 +496,19 @@ def main():
 
 if __name__ == '__main__':
     import os
+    import sys
 
+    # logger init
+    log_level = st.secrets['log']['level']
+    logger.info(f"log_level#[{log_level}]")
+    logger.remove()
+    logger.add(sys.stderr, level=log_level)
+
+    # database init
     if not os.path.exists(assets.db_uri_database()):
         from scripts.init import init_database
 
         init_database()
+
+    # app run
     main()
