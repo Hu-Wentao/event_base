@@ -61,8 +61,7 @@ def update_event(event_id: int, edits: dict[str, Any]):
         Event
         .update({
             **edits,
-            'update_at': datetime.now(),
-        })
+            'update_at': datetime.now(), })
         .where(Event.id == event_id)
     ).execute()
     logger.debug(f'{rst}')
@@ -324,6 +323,7 @@ def ui_form_event_batch(on_submitted: Callable[[Event, Iterable[Tag]], Any], now
     with c2:
         record_at = st.date_input("Record Date", value=now, help='一次只能导入单日event')
     datas = [ln.split(spilt_char) for ln in data.splitlines()]
+    datas = [d for d in datas if d.__len__() == 2]  # 过滤空白行 只导入 [‘<时间>’,‘<内容>’] 的数据
     rst = [{
         'record_at': datetime.combine(
             record_at,
